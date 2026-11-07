@@ -202,6 +202,7 @@ class RegistrationAndArchiveTests(MailboxTestCase):
                 thread.start()
             for thread in threads:
                 thread.join(timeout=10)
+            self.assertTrue(all(not thread.is_alive() for thread in threads), "concurrent join workers did not finish")
 
         self.assertFalse(errors)
         self.assertEqual(sorted(item["ok"] for item in results), [False, True])
@@ -350,6 +351,7 @@ class RoutingAndConcurrencyTests(MailboxTestCase):
         gate.wait()
         sent = self.mail("publish", "--from-agent", "sender", "--broadcast", "--subject", "race")
         thread.join(timeout=10)
+        self.assertFalse(thread.is_alive(), "concurrent registration worker did not finish")
         self.assertTrue(outputs[0]["ok"])
         late_count = self.mail("inbox", "--agent", "late")["count"]
         self.assertEqual(late_count, 1 if "late" in sent["recipients"] else 0)

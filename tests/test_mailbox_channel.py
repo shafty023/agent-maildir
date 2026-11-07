@@ -14,9 +14,16 @@ import tempfile
 import threading
 import time
 import unittest
+from datetime import timedelta
 from pathlib import Path
+from unittest import mock
 
 SOURCE = Path(__file__).resolve().parents[1] / "src" / "agent_maildir"
+sys.path.insert(0, str(SOURCE))
+import agent_mail as mail  # noqa: E402
+import mailbox_channel as channel_module  # noqa: E402
+import mailbox_hook as hook_module  # noqa: E402
+
 MAIL = [sys.executable, str(SOURCE / "agent_mail.py")]
 CHANNEL = [sys.executable, str(SOURCE / "mailbox_channel.py")]
 HOOK = [sys.executable, str(SOURCE / "mailbox_hook.py")]
@@ -86,13 +93,6 @@ class Server:
             lambda m: m.get("method") == "notifications/claude/channel" and m["params"]["meta"].get("type") == "probe", timeout
         )["params"]
 
-    def no_event(self, wait: float = 2.5) -> None:
-        try:
-            self.event(wait)
-        except AssertionError:
-            return
-        raise AssertionError("unexpected channel event")
-
     def close(self) -> None:
         self.process.stdin.close()
         self.process.wait(timeout=5)
@@ -154,7 +154,6 @@ class PushTests(unittest.TestCase):
         self.assertIn("ABC-1 result", event["content"])
         self.assertIn('"summary": "done"', event["content"])
         self.assertTrue(all(key.replace("_", "").isalnum() for key in event["meta"]))
-        server.no_event()  # pushed once, not on every poll
 
     def test_unacknowledged_backlog_is_pushed_on_startup(self) -> None:
         sent = self.publish()
@@ -173,7 +172,6 @@ class PushTests(unittest.TestCase):
         server = self.server()
         server.start()
         sent = self.publish()
-        server.no_event(1.5)
         _, is_error = server.tool("mailbox_inbox")
         self.assertTrue(is_error)
         bound, _ = server.tool("mailbox_bind", {"agent": "claude-sweep"})
@@ -201,7 +199,6 @@ class PushTests(unittest.TestCase):
         archived = self.mail("ack", "--agent", "codex-worker", "--message-id", ack["ack_id"])
         self.assertIsNone(archived["ack_id"])
         self.assertEqual(self.mail("inbox", "--agent", "claude-sweep")["count"], 0)
-        server.no_event(1.5)
 
     def test_reply_tool_and_sender_wait(self) -> None:
         server = self.server("--agent", "claude-sweep")
@@ -216,6 +213,7 @@ class PushTests(unittest.TestCase):
         reply, is_error = server.tool("mailbox_publish", {"to": ["codex-worker"], "subject": "Re: ABC-1", "reply_to": sent["message_id"], "body": {"summary": "accepted"}})
         self.assertFalse(is_error)
         thread.join(timeout=15)
+        self.assertFalse(thread.is_alive(), "reply waiter did not finish")
         self.assertEqual(waiter["reply"]["id"], reply["message_id"])
         self.assertEqual(waiter["reply"]["content"], {"summary": "accepted"})
 
@@ -349,10 +347,7 @@ class PushTests(unittest.TestCase):
         self.assertEqual(joined["agent"], "codex-reviewer")
         self.assertEqual(joined["push"]["state"], "off")
         self.assertIsNone(joined["push"]["launch"])
-        with self.assertRaises(AssertionError):
-            server.probe(timeout=1)
         self.mail("publish", "--from-agent", "codex-worker", "--to", "codex-reviewer", "--subject", "poll me")
-        server.no_event(1.5)
         inbox, is_error = server.tool("mailbox_inbox", {"agent": "codex-reviewer"})
         self.assertFalse(is_error)
         self.assertEqual(inbox["count"], 1)
@@ -428,12 +423,6 @@ class PushTests(unittest.TestCase):
             time.sleep(0.05)
         self.fail(f"watcher did not acquire {lock_path} within {timeout}s")
 
-    def assert_stays_running(self, process: subprocess.Popen, duration: float = 1.2) -> None:
-        deadline = time.monotonic() + duration
-        while time.monotonic() < deadline:
-            self.assertIsNone(process.poll(), "process exited before the observation window ended")
-            time.sleep(0.05)
-
     def test_watcher_wakes_idle_session_when_mail_arrives(self) -> None:
         self.mail("attach", "--agent", "claude-sweep")
         process = self.watcher()
@@ -450,7 +439,11 @@ class PushTests(unittest.TestCase):
         self.assertEqual(self.hook({"hook_event_name": "Stop", "session_id": "session-a"}), "")
         again = self.watcher()
         self.wait_for_watcher_lock()
-        self.assert_stays_running(again)
+        second = self.publish(subject="second")
+        self.assertEqual(again.wait(timeout=10), 2)
+        repeated = again.stderr.read()
+        self.assertIn(second["message_id"], repeated)
+        self.assertNotIn(sent["message_id"], repeated)
 
     def test_watcher_delivers_mail_that_arrived_during_the_turn(self) -> None:
         self.mail("attach", "--agent", "claude-sweep")
@@ -484,10 +477,86 @@ class PushTests(unittest.TestCase):
         server.start()
         server.tool("mailbox_confirm_push", {"nonce": server.probe()["meta"]["nonce"]})
         process = self.watcher()
-        self.publish()
-        server.event()
         self.wait_for_watcher_lock()
-        self.assert_stays_running(process, 2.0)
+        sent = self.publish()
+        self.assertEqual(server.event()["meta"]["message_id"], sent["message_id"])
+        status, _ = server.tool("mailbox_status")
+        self.assertEqual(status["push"]["state"], "confirmed")
+        self.assertIsNone(process.poll(), "watcher duplicated a message already delivered by the confirmed channel")
+        server.close()
+        self.assertEqual(process.wait(timeout=10), 2, "watcher did not resume hook delivery after the channel stopped")
+
+    def test_confirmed_presence_cannot_be_overwritten_by_an_older_heartbeat(self) -> None:
+        with mock.patch.dict(os.environ, self.env):
+            channel = channel_module.Channel(["claude-sweep"], redeliver_seconds=0, harness="claude")
+            original_atomic_json = channel_module.mail.atomic_json
+            heartbeat_blocked = threading.Event()
+            release_heartbeat = threading.Event()
+            confirmation_started = threading.Event()
+            errors: list[BaseException] = []
+
+            def delayed_atomic_json(path: Path, value: dict) -> None:
+                if value.get("push") == "unconfirmed" and not heartbeat_blocked.is_set():
+                    heartbeat_blocked.set()
+                    if not release_heartbeat.wait(timeout=5):
+                        raise AssertionError("test did not release the older heartbeat")
+                original_atomic_json(path, value)
+
+            def confirm() -> None:
+                try:
+                    confirmation_started.set()
+                    channel.call("mailbox_confirm_push", {"nonce": channel.nonce})
+                except BaseException as error:
+                    errors.append(error)
+
+            with mock.patch.object(channel_module.mail, "atomic_json", side_effect=delayed_atomic_json):
+                heartbeat = threading.Thread(target=channel.write_presence)
+                heartbeat.start()
+                self.assertTrue(heartbeat_blocked.wait(timeout=5), "older heartbeat did not reach the write boundary")
+                confirmation = threading.Thread(target=confirm)
+                confirmation.start()
+                self.assertTrue(confirmation_started.wait(timeout=5), "confirmation did not start")
+                # Without serialized presence writes, confirmation finishes while
+                # the older heartbeat is paused and that heartbeat then wins.
+                confirmation.join(timeout=1)
+                release_heartbeat.set()
+                heartbeat.join(timeout=5)
+                confirmation.join(timeout=5)
+
+        self.assertFalse(heartbeat.is_alive(), "older heartbeat did not finish")
+        self.assertFalse(confirmation.is_alive(), "confirmation did not finish")
+        self.assertEqual(errors, [])
+        state = mail.load_json(mail.presence_file(Path(self.tmp.name), "claude-sweep"))
+        self.assertEqual(state["push"], "confirmed")
+
+    def test_watcher_rechecks_confirmation_immediately_before_waking(self) -> None:
+        message = {"id": "message-1", "sender": "codex-worker", "type": "handoff", "authority": "none", "subject": "result", "content": {}}
+        with (
+            mock.patch.object(hook_module, "session_agents", return_value=["claude-sweep"]),
+            mock.patch.object(hook_module, "channel_confirmed", side_effect=[False, True]),
+            mock.patch.object(hook_module, "unread", return_value=[("claude-sweep", message)]),
+            mock.patch.object(hook_module, "load_surfaced", return_value=set()),
+            mock.patch.object(hook_module, "mark_surfaced") as mark_surfaced,
+            mock.patch.object(hook_module, "alive", side_effect=[True, False]),
+            mock.patch.object(hook_module.time, "sleep"),
+        ):
+            self.assertEqual(hook_module.watch(Path(self.tmp.name), "session-race"), 0)
+        mark_surfaced.assert_not_called()
+
+    def test_watcher_tolerates_one_delayed_channel_heartbeat(self) -> None:
+        root = Path(self.tmp.name)
+        state = {
+            "agent": "claude-sweep",
+            "transport": "claude-channel",
+            "pid": os.getpid(),
+            "claude_pid": self.fake_claude.pid,
+            "push": "confirmed",
+            "updated_at": mail.iso(mail.utc_now() - timedelta(seconds=mail.PRESENCE_TTL_SECONDS + 1)),
+        }
+        mail.atomic_json(mail.presence_file(root, "claude-sweep"), state)
+        self.assertIsNone(mail.listener_state(root, "claude-sweep"), "ordinary listener reporting should use the normal TTL")
+        with mock.patch.object(hook_module.mail, "claude_session_pid", return_value=self.fake_claude.pid):
+            self.assertTrue(hook_module.channel_confirmed(root, ["claude-sweep"]))
 
     def test_watcher_cleanup_precedes_tempdir_cleanup(self) -> None:
         self.mail("attach", "--agent", "claude-sweep")

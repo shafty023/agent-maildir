@@ -143,6 +143,7 @@ TOOLS: list[dict[str, Any]] = [
 class Channel:
     def __init__(self, agents: list[str], redeliver_seconds: float, harness: str = "auto") -> None:
         self.lock = threading.Lock()
+        self.presence_lock = threading.Lock()
         self.out_lock = threading.Lock()
         self.agents: list[str] = []
         self.pushed: dict[tuple[str, str], tuple[float, int]] = {}
@@ -282,33 +283,37 @@ class Channel:
         return agent
 
     def write_presence(self) -> None:
-        root = mail.root_path()
-        for agent in self.bound():
-            record = {
-                "agent": agent,
-                "transport": "claude-channel",
-                "pid": os.getpid(),
-                "ppid": os.getppid(),
-                "claude_pid": self.claude_pid,
-                "push": self.push_mode,
-                "client": self.client,
-                "started_at": self.started_at,
-                "updated_at": mail.iso(),
-            }
-            try:
-                mail.atomic_json(mail.presence_file(root, agent), record)
-            except OSError:
-                pass
+        with self.presence_lock:
+            if self.stopped.is_set():
+                return
+            root = mail.root_path()
+            for agent in self.bound():
+                record = {
+                    "agent": agent,
+                    "transport": "claude-channel",
+                    "pid": os.getpid(),
+                    "ppid": os.getppid(),
+                    "claude_pid": self.claude_pid,
+                    "push": self.push_mode,
+                    "client": self.client,
+                    "started_at": self.started_at,
+                    "updated_at": mail.iso(),
+                }
+                try:
+                    mail.atomic_json(mail.presence_file(root, agent), record)
+                except OSError:
+                    pass
 
     def clear_presence(self) -> None:
-        root = mail.root_path()
-        for agent in self.bound():
-            path = mail.presence_file(root, agent)
-            try:
-                if mail.load_json(path).get("pid") == os.getpid():
-                    path.unlink()
-            except (OSError, ValueError):
-                pass
+        with self.presence_lock:
+            root = mail.root_path()
+            for agent in self.bound():
+                path = mail.presence_file(root, agent)
+                try:
+                    if mail.load_json(path).get("pid") == os.getpid():
+                        path.unlink()
+                except (OSError, ValueError):
+                    pass
 
     # -- delivery ------------------------------------------------------------
 

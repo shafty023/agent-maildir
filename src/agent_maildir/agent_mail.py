@@ -249,7 +249,7 @@ def presence_file(root: Path, agent: str) -> Path:
     return root / "presence" / f"{validate_agent(agent)}.json"
 
 
-def listener_state(root: Path, agent: str) -> dict[str, Any] | None:
+def listener_state(root: Path, agent: str, max_age_seconds: float = PRESENCE_TTL_SECONDS) -> dict[str, Any] | None:
     """Return the push listener record for an agent when it is fresh and its process is alive."""
     try:
         value = load_json(presence_file(root, agent))
@@ -257,7 +257,7 @@ def listener_state(root: Path, agent: str) -> dict[str, Any] | None:
         pid = int(value.get("pid", 0))
     except (OSError, ValueError, TypeError):
         return None
-    if age > PRESENCE_TTL_SECONDS or pid < 1:
+    if age > max_age_seconds or pid < 1:
         return None
     try:
         os.kill(pid, 0)

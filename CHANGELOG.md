@@ -15,6 +15,7 @@ All notable changes to this project are documented here.
 
 ### Fixed
 
+- Serialize channel presence updates and recheck confirmed push before hook wake-up, preventing one message from waking both delivery paths under load.
 - Preserve user edits across repeated setup/repair/uninstall cycles by using a fresh pre-change backup and remove-only semantics for rerun records.
 - Refuse additional inline, dotted-section, and MCP sub-table TOML spellings on Python 3.9.
 - Make dry-run uninstall side-effect free and remove setup-created empty skill/state directories after uninstall or rollback.
