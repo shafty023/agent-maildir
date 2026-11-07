@@ -1,0 +1,10 @@
+{
+  "agent-maildir": {
+    "command": "python3",
+    "args": [
+      "${CLAUDE_PLUGIN_ROOT}/src/agent_maildir/mailbox_channel.py",
+      "--agent",
+      "${AGENT_MAILDIR_AGENT:-}"
+    ]
+  }
+}

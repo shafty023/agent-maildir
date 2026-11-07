@@ -1,0 +1,37 @@
+{
+  "description": "Wake attached Claude Code sessions when agent-maildir mail arrives.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/src/agent_maildir/mailbox_hook.py\"",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/src/agent_maildir/mailbox_hook.py\" --watch",
+            "asyncRewake": true
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/src/agent_maildir/mailbox_hook.py\"",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/src/agent_maildir/mailbox_hook.py\" --watch",
+            "asyncRewake": true
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "agent-maildir",
+  "description": "Local marketplace for the experimental agent-maildir Claude Code plugin.",
+  "owner": {
+    "name": "agent-maildir contributors"
+  },
+  "plugins": [
+    {
+      "name": "agent-maildir",
+      "description": "Durable cross-harness agent messaging with hooks and an optional MCP channel.",
+      "source": ".",
+      "category": "development"
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+include LICENSE
+include NOTICE
+include README.md
+include CHANGELOG.md
+include CONTRIBUTING.md
+include SECURITY.md
+recursive-include src/agent_maildir/skills *

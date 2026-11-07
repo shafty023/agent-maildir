@@ -1,0 +1,4 @@
+interface:
+  display_name: "Agent Maildir"
+  short_description: "Cross-harness messaging and topic routing"
+  default_prompt: "Use $agent-maildir to exchange durable messages between Codex and Claude agents."
