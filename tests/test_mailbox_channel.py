@@ -14,6 +14,7 @@ import tempfile
 import threading
 import time
 import unittest
+from collections import Counter
 from datetime import timedelta
 from pathlib import Path
 from unittest import mock
@@ -154,6 +155,18 @@ class PushTests(unittest.TestCase):
         self.assertIn("ABC-1 result", event["content"])
         self.assertIn('"summary": "done"', event["content"])
         self.assertTrue(all(key.replace("_", "").isalnum() for key in event["meta"]))
+
+    def test_each_message_is_pushed_exactly_once_across_poll_scans(self) -> None:
+        events: list[dict] = []
+        with mock.patch.dict(os.environ, self.env):
+            channel = channel_module.Channel(["claude-sweep"], redeliver_seconds=0, harness="claude")
+            with mock.patch.object(channel, "notify", side_effect=lambda _content, meta: events.append(meta.copy())):
+                sent = self.publish()
+                channel.poll()
+                channel.poll()
+
+        counts = Counter(event.get("message_id") for event in events if event.get("message_id"))
+        self.assertEqual(counts, Counter({sent["message_id"]: 1}))
 
     def test_unacknowledged_backlog_is_pushed_on_startup(self) -> None:
         sent = self.publish()
@@ -352,6 +365,17 @@ class PushTests(unittest.TestCase):
         self.assertFalse(is_error)
         self.assertEqual(inbox["count"], 1)
 
+    def test_non_claude_clients_never_emit_probe_notifications(self) -> None:
+        with mock.patch.dict(os.environ, self.env):
+            for harness in ("codex", "other"):
+                with self.subTest(harness=harness):
+                    channel = channel_module.Channel(["claude-sweep"], redeliver_seconds=0, harness=harness)
+                    events: list[dict] = []
+                    with mock.patch.object(channel, "notify", side_effect=lambda _content, meta: events.append(meta.copy())):
+                        channel.probe()
+                        channel.probe()
+                    self.assertEqual([event for event in events if event.get("type") == "probe"], [])
+
     def test_unregister_removes_agent_and_refuses_unread_mail(self) -> None:
         self.mail("join", "--harness", "claude", "--role", "temp", "--attach")
         self.mail("publish", "--from-agent", "codex-worker", "--to", "claude-temp", "--subject", "x")
@@ -476,15 +500,35 @@ class PushTests(unittest.TestCase):
         server = self.server("--agent", "claude-sweep")
         server.start()
         server.tool("mailbox_confirm_push", {"nonce": server.probe()["meta"]["nonce"]})
-        process = self.watcher()
-        self.wait_for_watcher_lock()
-        sent = self.publish()
-        self.assertEqual(server.event()["meta"]["message_id"], sent["message_id"])
-        status, _ = server.tool("mailbox_status")
-        self.assertEqual(status["push"]["state"], "confirmed")
-        self.assertIsNone(process.poll(), "watcher duplicated a message already delivered by the confirmed channel")
-        server.close()
-        self.assertEqual(process.wait(timeout=10), 2, "watcher did not resume hook delivery after the channel stopped")
+        scans = 0
+        scan_condition = threading.Condition()
+        result: list[int] = []
+
+        def mark_scan() -> None:
+            nonlocal scans
+            with scan_condition:
+                scans += 1
+                scan_condition.notify_all()
+
+        def wait_for_scan(expected: int) -> None:
+            with scan_condition:
+                self.assertTrue(scan_condition.wait_for(lambda: scans >= expected, timeout=10), f"watcher did not complete scan {expected}")
+
+        with mock.patch.dict(os.environ, self.env):
+            watcher = threading.Thread(target=lambda: result.append(hook_module.watch(Path(self.tmp.name), "session-a", on_scan=mark_scan)))
+            watcher.start()
+            wait_for_scan(1)
+            sent = self.publish()
+            self.assertEqual(server.event()["meta"]["message_id"], sent["message_id"])
+            wait_for_scan(2)
+            status, _ = server.tool("mailbox_status")
+            self.assertEqual(status["push"]["state"], "confirmed")
+            self.assertTrue(watcher.is_alive(), "watcher duplicated a message already delivered by the confirmed channel")
+            server.close()
+            watcher.join(timeout=10)
+
+        self.assertFalse(watcher.is_alive(), "watcher did not resume hook delivery after the channel stopped")
+        self.assertEqual(result, [2])
 
     def test_confirmed_presence_cannot_be_overwritten_by_an_older_heartbeat(self) -> None:
         with mock.patch.dict(os.environ, self.env):

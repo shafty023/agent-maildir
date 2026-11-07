@@ -26,6 +26,7 @@ import json
 import os
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -137,7 +138,7 @@ def alive(pid: int | None) -> bool:
     return True
 
 
-def watch(root: Path, session: str) -> int:
+def watch(root: Path, session: str, on_scan: Callable[[], None] | None = None) -> int:
     if not session_agents(root, session):
         return 0
     lock_path = mail.session_file(root, session).with_suffix(".lock")
@@ -165,6 +166,8 @@ def watch(root: Path, session: str) -> int:
                     blocks = "\n\n".join(full(agent, message) for agent, message in fresh)
                     print(f"agent-maildir: {len(fresh)} new message(s) for this session.\n\n{blocks}\n\n{GUIDANCE}", file=sys.stderr)
                     return 2
+            if on_scan is not None:
+                on_scan()
             time.sleep(WATCH_POLL_SECONDS)
     return 0
 
