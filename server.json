@@ -1,0 +1,23 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.shafty023/agent-maildir",
+  "title": "agent-maildir",
+  "description": "Durable, local mailbox tools for agents running in different command-line harnesses.",
+  "repository": {
+    "url": "https://github.com/shafty023/agent-maildir",
+    "source": "github"
+  },
+  "version": "0.1.1",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "agent-maildir",
+      "version": "0.1.1",
+      "runtimeHint": "agent-maildir-mcp",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}
