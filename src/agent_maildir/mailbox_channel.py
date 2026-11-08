@@ -28,7 +28,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import agent_mail as mail  # noqa: E402
 
-SERVER_INFO = {"name": "agent-maildir", "version": "0.1.0"}
+SERVER_INFO = {"name": "agent-maildir", "version": "0.1.1"}
 FALLBACK_PROTOCOL = "2025-06-18"
 POLL_SECONDS = 1.0
 PRESENCE_SECONDS = 5.0

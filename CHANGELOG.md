@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented here.
 
+## 0.1.1 - 2026-11-08
+
+### Added
+
+- Official MCP Registry metadata for the PyPI package and its stdio runtime.
+- A minimal container image and reusable stdio introspection check for `initialize` and `tools/list`.
+- A recorded plain-CLI handoff demonstrating a waiting reviewer receiving a role-routed message.
+
+### Changed
+
+- Include the MCP Registry ownership marker in the PyPI long description.
+- Verify the experimental Claude Code plugin from an isolated local marketplace install.
+
 ## 0.1.0 - 2026-11-07
 
 ### Added
