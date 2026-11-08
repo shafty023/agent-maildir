@@ -36,7 +36,7 @@ def response_by_id(responses: list[dict[str, Any]], request_id: int) -> dict[str
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--expected-version", default="0.1.1")
+    parser.add_argument("--expected-version", required=True)
     parser.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     command = args.command[1:] if args.command[:1] == ["--"] else args.command

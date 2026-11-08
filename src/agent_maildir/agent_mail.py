@@ -1159,6 +1159,15 @@ def cmd_setup(args: argparse.Namespace) -> dict[str, Any]:
     return run_setup(args)
 
 
+def mcp_main(arguments: list[str]) -> int:
+    """Run the bundled MCP stdio server through the main package command."""
+    try:
+        from . import mailbox_channel
+    except ImportError:
+        import mailbox_channel
+    return mailbox_channel.main(arguments)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=__doc__,
@@ -1172,6 +1181,7 @@ def build_parser() -> argparse.ArgumentParser:
         return item
 
     command("init", cmd_init, "initialize storage")
+    command("mcp", None, "run the MCP stdio server")
     item = command("register", cmd_register, "register a stable logical agent")
     item.add_argument("--agent", required=True)
     item.add_argument("--harness", required=True, choices=("codex", "claude", "other"))
@@ -1278,6 +1288,8 @@ def main() -> int:
         if len(sys.argv) == 1:
             parser.print_help()
             return 0
+        if sys.argv[1] == "mcp":
+            return mcp_main(sys.argv[2:])
         args = parser.parse_args()
         result = args.function(args)
         print(json.dumps(result, indent=2, sort_keys=True))

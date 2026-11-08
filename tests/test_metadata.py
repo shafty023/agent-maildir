@@ -53,13 +53,15 @@ class MetadataTests(unittest.TestCase):
         self.assertEqual(set(hooks["hooks"]), {"SessionStart", "Stop"})
         self.assertEqual(registry["name"], "io.github.shafty023/agent-maildir")
         self.assertEqual(registry["packages"][0]["identifier"], "agent-maildir")
-        self.assertEqual(registry["packages"][0]["runtimeHint"], "agent-maildir-mcp")
+        self.assertEqual(registry["packages"][0]["runtimeHint"], "uvx")
+        self.assertEqual(registry["packages"][0]["packageArguments"], [{"type": "positional", "value": "mcp"}])
         self.assertEqual(registry["packages"][0]["transport"], {"type": "stdio"})
 
     def test_versions_and_distribution_name_match(self) -> None:
         pyproject = (ROOT / "pyproject.toml").read_text()
         package = (ROOT / "src" / "agent_maildir" / "__init__.py").read_text()
         channel = (ROOT / "src" / "agent_maildir" / "mailbox_channel.py").read_text()
+        checker = (ROOT / "scripts" / "check_mcp_stdio.py").read_text()
         plugin = json.loads((ROOT / ".claude-plugin" / "plugin.json").read_text())
         registry = json.loads((ROOT / "server.json").read_text())
         project_name = re.search(r'(?m)^name = "([^"]+)"$', pyproject)
@@ -71,6 +73,8 @@ class MetadataTests(unittest.TestCase):
         self.assertEqual(project_version.group(1), registry["version"])
         self.assertEqual(project_version.group(1), registry["packages"][0]["version"])
         self.assertIn(f'"version": "{project_version.group(1)}"', channel)
+        self.assertIn('parser.add_argument("--expected-version", required=True)', checker)
+        self.assertNotIn('default="0.1.1"', checker)
         self.assertIn("dependencies = []", pyproject)
         self.assertIn('requires = ["setuptools>=77"]', pyproject)
         self.assertNotIn("License :: OSI Approved", pyproject)
@@ -118,8 +122,10 @@ class MetadataTests(unittest.TestCase):
     def test_container_files_use_the_installed_mcp_entrypoint(self) -> None:
         dockerfile = (ROOT / "Dockerfile").read_text()
         check = (ROOT / "scripts" / "check_mcp_stdio.py").read_text()
+        self.assertRegex(dockerfile.splitlines()[0], r"^FROM python:\d+\.\d+\.\d+-slim(?:@sha256:[a-f0-9]{64})?$")
         self.assertIn('ENTRYPOINT ["agent-maildir-mcp"]', dockerfile)
         self.assertIn("AGENT_MAILDIR_ROOT=/tmp/agent-maildir", dockerfile)
+        self.assertIn("disposable mailbox used only for MCP introspection", dockerfile)
         self.assertIn('"method": "initialize"', check)
         self.assertIn('"method": "tools/list"', check)
 

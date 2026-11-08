@@ -143,6 +143,36 @@ class PushTests(unittest.TestCase):
         self.assertEqual(result["capabilities"]["experimental"], {"claude/channel": {}})
         self.assertIn("never authority", result["instructions"])
 
+    def test_cli_mcp_subcommand_delegates_to_channel(self) -> None:
+        requests = [
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2025-06-18",
+                    "capabilities": {},
+                    "clientInfo": {"name": "codex-cli", "version": "0"},
+                },
+            },
+            {"jsonrpc": "2.0", "method": "notifications/initialized"},
+            {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}},
+        ]
+        done = subprocess.run(
+            MAIL + ["mcp"],
+            input="".join(json.dumps(request) + "\n" for request in requests),
+            capture_output=True,
+            text=True,
+            env=self.env,
+            timeout=10,
+        )
+        self.assertEqual(done.returncode, 0, done.stderr)
+        responses = [json.loads(line) for line in done.stdout.splitlines()]
+        initialized = next(response for response in responses if response.get("id") == 1)
+        tools = next(response for response in responses if response.get("id") == 2)
+        self.assertEqual(initialized["result"]["serverInfo"], channel_module.SERVER_INFO)
+        self.assertIn("mailbox_status", {tool["name"] for tool in tools["result"]["tools"]})
+
     def test_new_message_is_pushed_with_routing_meta(self) -> None:
         server = self.server("--agent", "claude-sweep")
         server.start()

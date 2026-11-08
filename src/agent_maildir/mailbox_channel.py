@@ -23,7 +23,7 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import agent_mail as mail  # noqa: E402
@@ -579,7 +579,7 @@ def configured_agents(values: list[str]) -> list[str]:
     return agents
 
 
-def main() -> int:
+def main(argv: Optional[list[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--agent", action="append", default=[], help="agent id to bind; repeatable or comma-separated")
     parser.add_argument(
@@ -594,7 +594,7 @@ def main() -> int:
         default=float(os.environ.get("AGENT_MAILDIR_REDELIVER_SECONDS", "900")),
         help="push an unacknowledged message again after this long; 0 disables reminders",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     for stream in (sys.stdin, sys.stdout):
         stream.reconfigure(encoding="utf-8")
     Channel(configured_agents(args.agent), args.redeliver_seconds, args.harness).serve()

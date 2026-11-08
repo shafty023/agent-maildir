@@ -1,5 +1,6 @@
-FROM python:3.13-slim
+FROM python:3.13.9-slim
 
+# This is a disposable mailbox used only for MCP introspection in the container.
 ENV AGENT_MAILDIR_ROOT=/tmp/agent-maildir \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1

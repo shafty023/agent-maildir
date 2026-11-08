@@ -14,7 +14,13 @@
       "registryBaseUrl": "https://pypi.org",
       "identifier": "agent-maildir",
       "version": "0.1.1",
-      "runtimeHint": "agent-maildir-mcp",
+      "runtimeHint": "uvx",
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "mcp"
+        }
+      ],
       "transport": {
         "type": "stdio"
       }
