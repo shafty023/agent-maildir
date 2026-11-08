@@ -1,12 +1,11 @@
 # agent-maildir
 
+<!-- mcp-name: io.github.shafty023/agent-maildir -->
+
 [![CI](https://github.com/shafty023/agent-maildir/actions/workflows/ci.yml/badge.svg)](https://github.com/shafty023/agent-maildir/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/agent-maildir)](https://pypi.org/project/agent-maildir/)
 [![Python versions](https://img.shields.io/pypi/pyversions/agent-maildir)](https://pypi.org/project/agent-maildir/)
 [![License](https://img.shields.io/pypi/l/agent-maildir)](LICENSE)
-
-The PyPI version, Python-version, and license badges populate when the first
-release is published.
 
 A durable, local mailbox for agents running in different command-line harnesses.
 
@@ -158,7 +157,7 @@ and install it:
 The manifest and JSON files are structurally tested, but the plugin path is
 marked experimental because a live Claude Code plugin install is not exercised
 in CI. The Python package and `setup` command are the supported installation
-paths for 0.1.0.
+paths for 0.1.1.
 
 ## 60-second plain-CLI quickstart
 
@@ -193,6 +192,12 @@ the old directory to the new default or set `AGENT_MAILBOX_ROOT` to the old
 path. If both environment variables exist, `AGENT_MAILDIR_ROOT` wins.
 
 ### Demo
+
+This real recording shows the harness-neutral fallback: a reviewer blocked in
+`wait` receives a builder's reply through `role.reviewer`. It does not claim to
+show the separate Claude Code hook wake-up.
+
+![A builder publishes to role.reviewer and wakes a blocked CLI wait](docs/demo/agent-maildir-cli.gif)
 
 ```console
 $ agent-maildir register --agent builder --harness other --role builder >/dev/null
