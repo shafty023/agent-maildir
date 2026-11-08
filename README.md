@@ -193,9 +193,10 @@ path. If both environment variables exist, `AGENT_MAILDIR_ROOT` wins.
 
 ### Demo
 
-This real recording shows the harness-neutral fallback: a reviewer blocked in
-`wait` receives a builder's reply through `role.reviewer`. It does not claim to
-show the separate Claude Code hook wake-up.
+This recording shows complete, real commands with JSON output trimmed to the
+routing and result fields: a reviewer blocked in `wait` receives a builder's
+reply through `role.reviewer`. It does not claim to show the separate Claude
+Code hook wake-up.
 
 ![A builder publishes to role.reviewer and wakes a blocked CLI wait](docs/demo/agent-maildir-cli.gif)
 

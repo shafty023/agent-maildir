@@ -13,7 +13,6 @@ All notable changes to this project are documented here.
 ### Changed
 
 - Include the MCP Registry ownership marker in the PyPI long description.
-- Verify the experimental Claude Code plugin from an isolated local marketplace install.
 
 ## 0.1.0 - 2026-11-07
 
