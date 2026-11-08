@@ -97,6 +97,8 @@ class MetadataTests(unittest.TestCase):
 
     def test_public_docs_notice_and_installed_command_guidance(self) -> None:
         readme = (ROOT / "README.md").read_text()
+        demo_cast = (ROOT / "docs" / "demo" / "agent-maildir-cli.cast").read_text()
+        demo_gif = ROOT / "docs" / "demo" / "agent-maildir-cli.gif"
         notice = (ROOT / "NOTICE").read_text()
         hook = (ROOT / "src" / "agent_maildir" / "mailbox_hook.py").read_text()
         channel = (ROOT / "src" / "agent_maildir" / "mailbox_channel.py").read_text()
@@ -118,6 +120,16 @@ class MetadataTests(unittest.TestCase):
         self.assertNotIn("agent_mail.py", channel)
         self.assertNotIn("demo-ceo", skill)
         self.assertNotIn("company.example-sites", skill)
+        self.assertIn("JSON output trimmed to the", readme)
+        for text in (
+            "Commands are complete and executed as shown. JSON is trimmed to key fields.",
+            'agent-maildir publish --from-agent cli-reviewer --to cli-builder --subject \\"Ready for handoff\\"',
+            "agent-maildir wait --agent cli-reviewer --reply-to",
+            "--type handoff --body",
+        ):
+            self.assertIn(text, demo_cast)
+        self.assertNotIn("/" + "Users/", demo_cast)
+        self.assertLess(demo_gif.stat().st_size, 5 * 1024 * 1024)
 
     def test_container_files_use_the_installed_mcp_entrypoint(self) -> None:
         dockerfile = (ROOT / "Dockerfile").read_text()
