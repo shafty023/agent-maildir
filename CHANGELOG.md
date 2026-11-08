@@ -9,6 +9,7 @@ All notable changes to this project are documented here.
 - Official MCP Registry metadata for the PyPI package and its stdio runtime.
 - A minimal container image and reusable stdio introspection check for `initialize` and `tools/list`.
 - A recorded plain-CLI handoff demonstrating a waiting reviewer receiving a role-routed message.
+- A live Claude Code/Codex demo showing plugin `Stop`-hook wake-up and Codex's blocking reply wait.
 
 ### Changed
 

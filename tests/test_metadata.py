@@ -97,6 +97,8 @@ class MetadataTests(unittest.TestCase):
 
     def test_public_docs_notice_and_installed_command_guidance(self) -> None:
         readme = (ROOT / "README.md").read_text()
+        live_demo_gif = ROOT / "docs" / "demo" / "agent-maildir-demo.gif"
+        live_demo_url = "https://raw.githubusercontent.com/shafty023/agent-maildir/main/docs/demo/agent-maildir-demo.gif"
         demo_cast = (ROOT / "docs" / "demo" / "agent-maildir-cli.cast").read_text()
         demo_gif = ROOT / "docs" / "demo" / "agent-maildir-cli.gif"
         notice = (ROOT / "NOTICE").read_text()
@@ -120,6 +122,9 @@ class MetadataTests(unittest.TestCase):
         self.assertNotIn("agent_mail.py", channel)
         self.assertNotIn("demo-ceo", skill)
         self.assertNotIn("company.example-sites", skill)
+        self.assertTrue(live_demo_gif.is_file())
+        self.assertLess(live_demo_gif.stat().st_size, 5 * 1024 * 1024)
+        self.assertIn(live_demo_url, readme)
         self.assertIn("JSON output trimmed to the", readme)
         for text in (
             "Commands are complete and executed as shown. JSON is trimmed to key fields.",
@@ -134,7 +139,7 @@ class MetadataTests(unittest.TestCase):
     def test_container_files_use_the_installed_mcp_entrypoint(self) -> None:
         dockerfile = (ROOT / "Dockerfile").read_text()
         check = (ROOT / "scripts" / "check_mcp_stdio.py").read_text()
-        self.assertRegex(dockerfile.splitlines()[0], r"^FROM python:\d+\.\d+\.\d+-slim(?:@sha256:[a-f0-9]{64})?$")
+        self.assertRegex(dockerfile.splitlines()[0], r"^FROM python:\d+\.\d+\.\d+-slim@sha256:[a-f0-9]{64}$")
         self.assertIn('ENTRYPOINT ["agent-maildir-mcp"]', dockerfile)
         self.assertIn("AGENT_MAILDIR_ROOT=/tmp/agent-maildir", dockerfile)
         self.assertIn("disposable mailbox used only for MCP introspection", dockerfile)

@@ -193,6 +193,16 @@ path. If both environment variables exist, `AGENT_MAILDIR_ROOT` wins.
 
 ### Demo
 
+In the live cross-harness demo, Codex publishes a review request and blocks in
+`wait` until the reply arrives. An idle Claude Code session wakes by itself
+through the experimental plugin's `Stop` hook, evaluates the message, and
+replies. Codex is not push-woken in 0.1.1; it receives the reply through its
+blocking wait.
+
+![An idle Claude Code session wakes through the plugin and replies to Codex](https://raw.githubusercontent.com/shafty023/agent-maildir/main/docs/demo/agent-maildir-demo.gif)
+
+#### CLI only
+
 This recording shows complete, real commands with JSON output trimmed to the
 routing and result fields: a reviewer blocked in `wait` receives a builder's
 reply through `role.reviewer`. It does not claim to show the separate Claude
